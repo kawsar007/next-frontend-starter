@@ -220,8 +220,8 @@ src/
 ### 1. Clone & install
 
 ```bash
-git clone https://github.com/your-org/nextjs-enterprise-starter.git
-cd nextjs-enterprise-starter
+git clone https://github.com/your-org/next-frontend-starter.git
+cd next-frontend-starter
 npm install
 ```
 
