@@ -747,3 +747,20 @@ output: 'standalone',
 ## 📄 License
 
 MIT — free to use as the foundation for any project.
+
+## 👨‍💻 Author
+
+**Kawsar Mia**
+
+Software Engineer — Backend & Frontend
+
+- Email: imkawsar007@gmail.com
+- GitHub: https://github.com/kawsar007
+- LinkedIn: https://www.linkedin.com/in/kawsar007/
+- Portfolio: https://kawsar-mia.netlify.app/
+
+If you have any questions, suggestions, or improvements, feel free to reach out.
+
+## 🤝 Contributing
+
+Contributions are welcome. Feel free to open issues or submit pull requests.
