@@ -1,9 +1,9 @@
 
 /**
- * ThemeToggle — accessible button that cycles: dark → light → system → dark.
+ * ThemeToggle — accessible button that cycles: dark → light → dark.
  *
  * Design:
- *  - Animated icon swap (Sun ↔ Moon ↔ Monitor) with CSS scale+opacity
+ *  - Animated icon swap (Sun ↔ Moon) with CSS scale+opacity
  *  - Shows current resolved theme via tooltip / aria-label
  *  - Zero layout shift — fixed width/height container
  *  - Fully keyboard-accessible (role="button", aria-label updates)
@@ -13,18 +13,17 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { Monitor, Moon, Sun } from 'lucide-react';
+import { Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
 
-type ThemeValue = 'dark' | 'light' | 'system';
+type ThemeValue = 'dark' | 'light';
 
-const CYCLE: ThemeValue[] = ['dark', 'light', 'system'];
+const CYCLE: ThemeValue[] = ['dark', 'light'];
 
 const THEME_META: Record<ThemeValue, { icon: React.ElementType; label: string }> = {
   dark: { icon: Moon, label: 'Switch to light mode' },
-  light: { icon: Sun, label: 'Switch to system mode' },
-  system: { icon: Monitor, label: 'Switch to dark mode' },
+  light: { icon: Sun, label: 'Switch to dark mode' },
 };
 
 export function ThemeToggle({ className }: { className?: string }) {
