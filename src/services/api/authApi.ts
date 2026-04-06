@@ -1,19 +1,24 @@
 /**
  * authApi — RTK Query endpoints for authentication.
- * Covers: register, login, refresh, logout.
+ *
+ * Security fix applied:
+ *  logout.onQueryStarted now dispatches resetAppState() instead of
+ *  clearCredentials() alone. This ensures ALL RTK Query caches
+ *  are wiped when a session ends, preventing data leaks between users.
  */
-import { createApi } from '@reduxjs/toolkit/query/react';
-import { customBaseQuery } from './baseQuery';
 import { tokenStore } from '@/lib/token';
-import { setCredentials, clearCredentials } from '@store/slices/authSlice';
 import type {
   ApiResponse,
+  AuthTokens,
   LoginCredentials,
   RegisterCredentials,
-  UserWithTokens,
-  AuthTokens,
   User,
+  UserWithTokens,
 } from '@/types';
+import { createApi } from '@reduxjs/toolkit/query/react';
+import { resetAppState } from '@store/actions/resetAppState';
+import { setCredentials } from '@store/slices/authSlice';
+import { customBaseQuery } from './baseQuery';
 
 export const authApi = createApi({
   reducerPath: 'authApi',
@@ -35,7 +40,7 @@ export const authApi = createApi({
           tokenStore.setTokenPair(tokens.accessToken, tokens.refreshToken);
           dispatch(setCredentials({ user, tokens }));
         } catch {
-          // error handled by component
+          // errors handled in component
         }
       },
     }),
@@ -48,8 +53,8 @@ export const authApi = createApi({
           const { data } = await queryFulfilled;
           tokenStore.setTokenPair(data.data.accessToken, data.data.refreshToken);
         } catch {
-          dispatch(clearCredentials());
-          tokenStore.clearAll();
+          // Refresh failed → full session teardown
+          dispatch(resetAppState());
         }
       },
     }),
@@ -58,10 +63,10 @@ export const authApi = createApi({
     logout: builder.mutation<ApiResponse<void>, void>({
       query: () => ({ url: '/auth/logout', method: 'POST' }),
       async onQueryStarted(_, { dispatch, queryFulfilled }) {
-        // Optimistic: clear immediately, revert only if network error but logout is best-effort
-        dispatch(clearCredentials());
-        tokenStore.clearAll();
-        try { await queryFulfilled; } catch { /* best effort */ }
+        // ✅ FIX: dispatch resetAppState() — clears ALL caches + auth + cookies
+        // This is optimistic (fires before server responds) — logout is best-effort.
+        dispatch(resetAppState());
+        try { await queryFulfilled; } catch { /* server error doesn't re-login user */ }
       },
     }),
   }),

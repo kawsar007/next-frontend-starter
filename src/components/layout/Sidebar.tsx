@@ -1,33 +1,38 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import {
-  LayoutDashboard, Users, UserCircle, LogOut,
-  ChevronLeft, ChevronRight, Menu,
-} from 'lucide-react';
+import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
-import { useUIStore } from '@store/uiStore';
+import { resetAppState } from '@/store/actions/resetAppState';
+import { useLogoutMutation } from '@services/api/authApi';
 import { useAppDispatch, useAppSelector } from '@store/hooks';
 import { selectCurrentUser } from '@store/slices/authSlice';
-import { useLogoutMutation } from '@services/api/authApi';
-import { Avatar } from '@/components/ui/Avatar';
-import { useRouter } from 'next/navigation';
+import { useUIStore } from '@store/uiStore';
+import {
+  ChevronLeft, ChevronRight,
+  LayoutDashboard,
+  LogOut,
+  UserCircle,
+  Users
+} from 'lucide-react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { href: '/users',     label: 'Users',     icon: Users },
-  { href: '/profile',   label: 'Profile',   icon: UserCircle },
+  { href: '/users', label: 'Users', icon: Users },
+  { href: '/profile', label: 'Profile', icon: UserCircle },
 ];
 
 export function Sidebar() {
-  const pathname    = usePathname();
-  const router      = useRouter();
-  const dispatch    = useAppDispatch();
-  const user        = useAppSelector(selectCurrentUser);
+  const pathname = usePathname();
+  const router = useRouter();
+  const dispatch = useAppDispatch();
+  const user = useAppSelector(selectCurrentUser);
   const { sidebarCollapsed, toggleCollapse, sidebarOpen, setSidebarOpen } = useUIStore();
-  const [logout]    = useLogoutMutation();
+
+  const [logoutMutation] = useLogoutMutation();
+  const [logout] = useLogoutMutation();
 
   const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname.startsWith(href);
@@ -35,9 +40,12 @@ export function Sidebar() {
   const handleLogout = async () => {
     try {
       await logout().unwrap();
-    } catch { /* best-effort */ } finally {
+    } catch { /* best-effort */
+      dispatch(resetAppState());
+    } finally {
       toast.success('Signed out');
       router.push('/auth/login');
+      router.refresh(); // Force Next.js to re-run middleware / clear RSC cache
     }
   };
 
@@ -46,7 +54,7 @@ export function Sidebar() {
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-20 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-20 bg-black/50 backdrop-blur-sm lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -54,18 +62,19 @@ export function Sidebar() {
       <aside
         className={cn(
           'fixed lg:relative z-30 h-full flex flex-col',
-          'border-r border-border transition-all duration-300 ease-in-out',
+          'bg-surface border-r border-border',
+          'transition-all duration-300 ease-in-out',
           'lg:translate-x-0',
-          sidebarOpen  ? 'translate-x-0' : '-translate-x-full',
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full',
           sidebarCollapsed ? 'w-16' : 'w-60',
         )}
-        style={{ background: 'hsl(var(--surface))' }}
       >
         {/* Logo */}
         <div className="flex items-center gap-3 px-4 h-16 border-b border-border shrink-0">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: 'hsl(38 92% 58%)' }}>
-            <span className="font-display text-xs font-bold" style={{ color: 'hsl(220 16% 8%)' }}>E</span>
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-primary"
+          >
+            <span className="font-display text-xs font-bold text-primary-foreground">E</span>
           </div>
           {!sidebarCollapsed && (
             <span className="font-display text-base text-foreground truncate">Enterprise</span>
@@ -73,7 +82,7 @@ export function Sidebar() {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
+        <nav className="flex-1 py-4 px-2 space-y-0.5 overflow-y-auto">
           {navItems.map(({ href, label, icon: Icon, exact }) => {
             const active = isActive(href, exact);
             return (
@@ -99,10 +108,11 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* Bottom: user + collapse */}
+        {/* Bottom: user info + logout + collapse */}
         <div className="border-t border-border p-3 space-y-2 shrink-0">
           <button
             onClick={handleLogout}
+            title={sidebarCollapsed ? 'Sign out' : undefined}
             className={cn(
               'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm',
               'text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors',
@@ -122,9 +132,10 @@ export function Sidebar() {
             </div>
           )}
 
-          {/* Collapse toggle — desktop only */}
+          {/* Desktop collapse toggle */}
           <button
             onClick={toggleCollapse}
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className="hidden lg:flex w-full items-center justify-center py-1.5 rounded-md
               text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >

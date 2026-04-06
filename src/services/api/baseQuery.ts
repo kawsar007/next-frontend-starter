@@ -1,11 +1,8 @@
 /**
- * customBaseQuery — RTK Query base query with automatic JWT refresh.
+ * customBaseQuery — RTK Query base query with JWT refresh + full session teardown.
  *
- * Flow:
- *  1. Attach access token from cookie to every request.
- *  2. On 401 → try to refresh using the refresh token.
- *  3. On refresh success → retry the original request with the new token.
- *  4. On refresh failure → clear tokens and dispatch logout.
+ * Security improvement: when token refresh fails, we now call resetAppState()
+ * instead of just clearCredentials(), ensuring ALL RTK Query caches are wiped.
  */
 import { isTokenExpired, tokenStore } from '@/lib/token';
 import {
@@ -14,11 +11,11 @@ import {
   type FetchArgs,
   type FetchBaseQueryError,
 } from '@reduxjs/toolkit/query/react';
-import { clearCredentials } from '@store/slices/authSlice';
+import { resetAppState } from '@store/actions/resetAppState';
+import type { AppDispatch } from '@store/index';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
 
-/** Raw base query — no retry logic. */
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: API_URL,
   prepareHeaders: (headers) => {
@@ -28,7 +25,7 @@ const rawBaseQuery = fetchBaseQuery({
   },
 });
 
-/** Mutex to serialise concurrent refresh attempts. */
+/** Mutex — prevents concurrent refresh storms */
 let refreshPromise: Promise<boolean> | null = null;
 
 async function tryRefreshTokens(): Promise<boolean> {
@@ -60,33 +57,29 @@ export const customBaseQuery: BaseQueryFn<
   unknown,
   FetchBaseQueryError
 > = async (args, api, extraOptions) => {
-  // Pre-emptively refresh if access token is about to expire
+  // Pre-emptive refresh if access token expires within 30s
   const accessToken = tokenStore.getAccess();
   if (accessToken && isTokenExpired(accessToken)) {
     if (!refreshPromise) {
-      refreshPromise = tryRefreshTokens().finally(() => {
-        refreshPromise = null;
-      });
+      refreshPromise = tryRefreshTokens().finally(() => { refreshPromise = null; });
     }
     await refreshPromise;
   }
 
   let result = await rawBaseQuery(args, api, extraOptions);
 
-  // On 401 → attempt refresh once then retry
+  // On 401 → attempt refresh once, then retry
   if (result.error?.status === 401) {
     if (!refreshPromise) {
-      refreshPromise = tryRefreshTokens().finally(() => {
-        refreshPromise = null;
-      });
+      refreshPromise = tryRefreshTokens().finally(() => { refreshPromise = null; });
     }
     const refreshed = await refreshPromise;
 
     if (refreshed) {
       result = await rawBaseQuery(args, api, extraOptions);
     } else {
-      tokenStore.clearAll();
-      api.dispatch(clearCredentials());
+      // ✅ FIX: resetAppState wipes all caches, not just clearCredentials
+      (api.dispatch as AppDispatch)(resetAppState());
     }
   }
 

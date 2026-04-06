@@ -1,34 +1,41 @@
 /**
- * LoginForm — client component with react-hook-form + Zod validation.
- * Dispatches to RTK Query authApi.login endpoint.
- * Reads `callbackUrl` from search params for post-login redirect.
+ * LoginForm — Zod-validated login with react-hook-form.
+ *
+ * Security: dispatches resetAppState() before login so any
+ * leftover cache from a previous session is wiped before
+ * the new user's session begins. This is defence-in-depth —
+ * the primary fix is in authApi logout — but this handles the
+ * edge case where a user navigates directly to /auth/login.
  */
 'use client';
 
-import { useSearchParams, useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import Link from 'next/link';
-import toast from 'react-hot-toast';
-import { Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react';
-import { useState } from 'react';
-import { useLoginMutation } from '@services/api/authApi';
-import { extractErrorMessage } from '@/lib/utils';
-import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
+import { extractErrorMessage } from '@/lib/utils';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useLoginMutation } from '@services/api/authApi';
+import { resetAppState } from '@store/actions/resetAppState';
+import { useAppDispatch } from '@store/hooks';
+import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import toast from 'react-hot-toast';
+import { z } from 'zod';
 
 const loginSchema = z.object({
-  email:    z.string().email('Enter a valid email'),
+  email: z.string().email('Enter a valid email'),
   password: z.string().min(1, 'Password is required'),
 });
 type LoginValues = z.infer<typeof loginSchema>;
 
 export function LoginForm() {
-  const router        = useRouter();
-  const searchParams  = useSearchParams();
-  const callbackUrl   = searchParams.get('callbackUrl') ?? '/dashboard';
+  const router = useRouter();
+  const dispatch = useAppDispatch();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get('callbackUrl') ?? '/dashboard';
   const [showPass, setShowPass] = useState(false);
 
   const [login, { isLoading }] = useLoginMutation();
@@ -38,6 +45,9 @@ export function LoginForm() {
   });
 
   const onSubmit = async (values: LoginValues) => {
+    // Wipe any stale cache from a previous session before logging in
+    dispatch(resetAppState());
+
     try {
       await login(values).unwrap();
       toast.success('Welcome back!');
@@ -51,10 +61,8 @@ export function LoginForm() {
   return (
     <div className="animate-fade-up">
       <div className="mb-8">
-        <h2 className="font-display text-3xl mb-2" style={{ color: 'hsl(40 15% 90%)' }}>
-          Sign in
-        </h2>
-        <p className="text-sm" style={{ color: 'hsl(220 10% 55%)' }}>
+        <h2 className="font-display text-3xl mb-2 text-foreground">Sign in</h2>
+        <p className="text-sm text-muted-foreground">
           Don&apos;t have an account?{' '}
           <Link href="/auth/register" className="text-primary hover:underline underline-offset-4">
             Create one
@@ -66,61 +74,42 @@ export function LoginForm() {
         <div>
           <Label htmlFor="email">Email</Label>
           <Input
-            id="email"
-            type="email"
-            placeholder="you@company.com"
-            autoComplete="email"
-            autoFocus
-            {...register('email')}
-            error={errors.email?.message}
+            id="email" type="email" placeholder="you@company.com"
+            autoComplete="email" autoFocus
+            {...register('email')} error={errors.email?.message}
           />
         </div>
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <Label htmlFor="password">Password</Label>
-            <Link
-              href="#"
-              className="text-xs hover:underline underline-offset-4"
-              style={{ color: 'hsl(220 10% 55%)' }}
-            >
+            <Link href="#" className="text-xs text-muted-foreground hover:underline underline-offset-4">
               Forgot password?
             </Link>
           </div>
           <Input
-            id="password"
-            type={showPass ? 'text' : 'password'}
-            placeholder="••••••••"
-            autoComplete="current-password"
+            id="password" type={showPass ? 'text' : 'password'}
+            placeholder="••••••••" autoComplete="current-password"
             suffix={
-              <button
-                type="button"
-                onClick={() => setShowPass((v) => !v)}
-                className="p-1 rounded hover:text-foreground transition-colors"
-                style={{ color: 'hsl(220 10% 55%)' }}
-              >
+              <button type="button" onClick={() => setShowPass(v => !v)}
+                className="p-1 rounded transition-colors text-muted-foreground hover:text-foreground">
                 {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             }
-            {...register('password')}
-            error={errors.password?.message}
+            {...register('password')} error={errors.password?.message}
           />
         </div>
 
         <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? (
-            <Loader2 size={16} className="animate-spin" />
-          ) : (
-            <>Sign in <ArrowRight size={16} className="ml-2" /></>
-          )}
+          {isLoading
+            ? <Loader2 size={16} className="animate-spin" />
+            : <><span>Sign in</span><ArrowRight size={16} className="ml-2" /></>
+          }
         </Button>
       </form>
 
-      {/* Demo credentials hint */}
-      <div
-        className="mt-6 p-3 rounded-lg text-xs space-y-1"
-        style={{ background: 'hsl(var(--surface-2))', color: 'hsl(220 10% 55%)' }}
-      >
+      {/* Demo credentials */}
+      <div className="mt-6 p-3 rounded-lg text-xs space-y-1 bg-surface-2 text-muted-foreground">
         <p className="font-mono">admin@example.com / Admin@123456</p>
         <p className="font-mono">user@example.com  / User@123456</p>
       </div>
